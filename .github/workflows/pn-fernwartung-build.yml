@@ -3,6 +3,9 @@ name: PN-Fernwartung Build
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     uses: ./.github/workflows/flutter-build.yml
