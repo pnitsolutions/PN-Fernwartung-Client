@@ -450,9 +450,9 @@ jobs:
         with:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
-          files: |
+         files: |
             ./SignOutput/rustdesk-*.msi
-            ./SignOutput/rustdesk-*.exe
+            ./SignOutput/PN-Fernwartung-*.exe
 
   # The fallback for the flutter version, we use Sciter for 32bit Windows.
   build-for-windows-sciter:
