@@ -7138,6 +7138,7 @@ dependencies = [
  "keepawake",
  "lazy_static",
  "libpulse-binding",
+ "log",
  "libpulse-simple-binding",
  "libxdo-sys",
  "mac_address",
