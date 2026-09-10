@@ -697,7 +697,23 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
     // Tell the system that the service is running now
     status_handle.set_service_status(next_status)?;
 
-    let mut session_id = unsafe { get_current_session(share_rdp()) };
+tokio::spawn(async {
+    loop {
+        match crate::pn_enrollment::ensure_enrolled().await {
+            Ok(_) => {
+                log::info!("PN-Fernwartung enrollment finished");
+                break;
+            }
+            Err(e) => {
+                log::error!("PN-Fernwartung enrollment failed: {}", e);
+
+                tokio::time::sleep(Duration::from_secs(60)).await;
+            }
+        }
+    }
+});
+
+let mut session_id = unsafe { get_current_session(share_rdp()) };
     log::info!("session id {}", session_id);
     let mut h_process = launch_server(session_id, true).await.unwrap_or(NULL);
     let mut incoming = ipc::new_listener(crate::POSTFIX_SERVICE).await?;
