@@ -93,10 +93,9 @@ pub async fn ensure_enrolled() -> Result<(), String> {
     let id = wait_for_id().await?;
     let hostname = get_hostname();
 
-    /*
-     * Password setting is added in the next step.
-     * We intentionally do not send anything yet.
-     */
+    if !hbb_common::config::Config::set_permanent_password(&password) {
+    return Err("Failed to set permanent password".to_owned());
+    }
 
     let _payload = EnrollmentPayload {
         id,
