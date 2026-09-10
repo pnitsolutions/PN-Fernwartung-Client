@@ -97,17 +97,41 @@ pub async fn ensure_enrolled() -> Result<(), String> {
     return Err("Failed to set permanent password".to_owned());
     }
 
-    let _payload = EnrollmentPayload {
-        id,
-        hostname,
-        password,
-        client: "PN-Fernwartung".to_owned(),
-    };
+let payload = EnrollmentPayload {
+    id,
+    hostname,
+    password: password.clone(),
+    client: "PN-Fernwartung".to_owned(),
+};
 
-    let _client = reqwest::Client::new();
+let client = reqwest::Client::builder()
+    .timeout(Duration::from_secs(15))
+    .build()
+    .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
 
-    let _ = ENROLL_URL;
-    let _ = token;
+let response = client
+    .post(ENROLL_URL)
+    .bearer_auth(token)
+    .json(&payload)
+    .send()
+    .await
+    .map_err(|e| format!("Enrollment request failed: {e}"))?;
 
-    Ok(())
+if !response.status().is_success() {
+    return Err(format!(
+        "Enrollment server returned HTTP {}",
+        response.status()
+    ));
+}
+
+fs::write(registered_marker(), b"registered")
+    .map_err(|e| format!("Failed to write enrollment marker: {e}"))?;
+
+// Das temporär gespeicherte Klartext-Passwort wird nach
+// erfolgreicher Registrierung nicht mehr benötigt.
+let _ = fs::remove_file(pending_password_file());
+
+log::info!("PN-Fernwartung enrollment completed successfully");
+
+Ok(())
 }
