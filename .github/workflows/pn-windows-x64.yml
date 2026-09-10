@@ -8,7 +8,7 @@ env:
   LLVM_VERSION: "15.0.6"
   FLUTTER_VERSION: "3.24.5"
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
-  PN_ENROLLMENT_TOKEN: ${{ TagPIS7IJziKhj1Cc8yjUjgN2sUMHwKY4vIAJpnyfOyHNkVwvEmxKF1pj7tmhl0u }}
+  PN_ENROLLMENT_TOKEN: ${{ secrets.PN_ENROLLMENT_TagPIS7IJziKhj1Cc8yjUjgN2sUMHwKY4vIAJpnyfOyHNkVwvEmxKF1pj7tmhl0u }}
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
 jobs:
