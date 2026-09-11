@@ -7,6 +7,7 @@ use std::{
 use uuid::Uuid;
 
 const ENROLL_URL: &str = "https://enroll.pn-it-solutions.eu/api/enroll";
+const HEARTBEAT_URL: &str = "https://enroll.pn-it-solutions.eu/api/heartbeat";
 const ENROLL_VALIDATE_URL: &str =
     "https://portal.pn-it-solutions.eu/pn-fernwartung/api/enrollment/validate";
 
@@ -32,6 +33,11 @@ struct EnrollmentPayload {
     password: String,
     client: String,
     enrollment_code: Option<String>,
+}
+
+#[derive(Serialize)]
+struct HeartbeatPayload {
+    id: String,
 }
 
 fn state_dir() -> PathBuf {
@@ -272,6 +278,40 @@ debug_log("ensure_enrolled: enrollment code available");
 
     debug_log("ensure_enrolled: completed successfully");
     log::info!("PN-Fernwartung enrollment completed successfully");
+
+    Ok(())
+}
+pub async fn send_heartbeat() -> Result<(), String> {
+    let token = option_env!("PN_ENROLLMENT_TOKEN")
+        .ok_or_else(|| "PN_ENROLLMENT_TOKEN was not set during build".to_owned())?;
+
+    let id = hbb_common::config::Config::get_id();
+
+    if id.trim().is_empty() {
+        return Err("RustDesk ID not available".to_owned());
+    }
+
+    let payload = HeartbeatPayload { id };
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
+
+    let response = client
+        .post(HEARTBEAT_URL)
+        .bearer_auth(token)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Heartbeat request failed: {e}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "Heartbeat server returned HTTP {}",
+            response.status()
+        ));
+    }
 
     Ok(())
 }
