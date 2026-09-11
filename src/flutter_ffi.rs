@@ -1780,7 +1780,22 @@ pub fn main_set_pn_enrollment_code_with_result(code: String) -> bool {
         false
     }
 }
+#[tokio::main(flavor = "current_thread")]
+pub async fn main_validate_pn_enrollment_code(code: String) -> String {
+    #[cfg(target_os = "windows")]
+    {
+        match crate::pn_enrollment::validate_enrollment_code(&code).await {
+            Ok(()) => "valid".to_owned(),
+            Err(err) => err,
+        }
+    }
 
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = code;
+        "unsupported".to_owned()
+    }
+}
 pub fn main_get_fingerprint() -> String {
     get_fingerprint()
 }
