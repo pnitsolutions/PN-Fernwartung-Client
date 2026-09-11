@@ -65,6 +65,9 @@ fn load_enrollment_code() -> Option<String> {
         .map(|v| v.trim().to_owned())
         .filter(|v| !v.is_empty())
 }
+pub fn has_enrollment_code() -> bool {
+    load_enrollment_code().is_some()
+}
 pub fn save_enrollment_code(code: &str) -> Result<(), String> {
     let code = code.trim().to_uppercase();
 
