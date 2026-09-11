@@ -848,17 +848,17 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         _updateWindowSize();
       });
     }
-    if (isWindows) {
-  WidgetsBinding.instance.addPostFrameCallback((_) {
+if (isWindows) {
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
     if (!mounted) {
       return;
     }
 
-    if (!bind.mainHasPnEnrollmentCode()) {
+    if (!await bind.mainHasPnEnrollmentCode()) {
       _showPnEnrollmentDialog();
     }
   });
-} 
+}
     WidgetsBinding.instance.addObserver(this);
   }
 void _showPnEnrollmentDialog() {
