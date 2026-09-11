@@ -713,9 +713,21 @@ std::thread::spawn(|| {
         loop {
             match crate::pn_enrollment::ensure_enrolled().await {
                 Ok(_) => {
-                    log::info!("PN-Fernwartung enrollment finished");
-                    break;
-                }
+    log::info!("PN-Fernwartung enrollment finished");
+
+    loop {
+        match crate::pn_enrollment::send_heartbeat().await {
+            Ok(_) => {
+                log::info!("PN-Fernwartung heartbeat successful");
+            }
+            Err(e) => {
+                log::error!("PN-Fernwartung heartbeat failed: {}", e);
+            }
+        }
+
+        tokio::time::sleep(Duration::from_secs(60)).await;
+    }
+}
                 Err(e) => {
                     log::error!("PN-Fernwartung enrollment failed: {}", e);
                     tokio::time::sleep(Duration::from_secs(60)).await;
