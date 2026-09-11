@@ -1796,6 +1796,17 @@ pub async fn main_validate_pn_enrollment_code(code: String) -> String {
         "unsupported".to_owned()
     }
 }
+pub fn main_has_pn_enrollment_code() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        return crate::pn_enrollment::has_enrollment_code();
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        false
+    }
+}
 pub fn main_get_fingerprint() -> String {
     get_fingerprint()
 }
