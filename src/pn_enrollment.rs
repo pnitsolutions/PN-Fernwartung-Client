@@ -63,7 +63,23 @@ fn load_enrollment_code() -> Option<String> {
         .map(|v| v.trim().to_owned())
         .filter(|v| !v.is_empty())
 }
+pub fn save_enrollment_code(code: &str) -> Result<(), String> {
+    let code = code.trim().to_uppercase();
 
+    if code.is_empty() {
+        return Err("Enrollment code is empty".to_owned());
+    }
+
+    let dir = state_dir();
+
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("Failed to create enrollment state directory: {e}"))?;
+
+    fs::write(enrollment_code_file(), code)
+        .map_err(|e| format!("Failed to store enrollment code: {e}"))?;
+
+    Ok(())
+}
 fn generate_password() -> String {
     format!(
         "{}{}",
@@ -128,7 +144,12 @@ pub async fn ensure_enrolled() -> Result<(), String> {
         })?;
 
     debug_log("ensure_enrolled: token available");
+    let enrollment_code = load_enrollment_code().ok_or_else(|| {
+    debug_log("ensure_enrolled: enrollment code not available yet");
+    "Enrollment code not available yet".to_owned()
+})?;
 
+debug_log("ensure_enrolled: enrollment code available");
     let password = load_or_create_password()?;
     debug_log("ensure_enrolled: password loaded/created");
 
@@ -151,7 +172,7 @@ pub async fn ensure_enrolled() -> Result<(), String> {
     hostname,
     password: password.clone(),
     client: "PN-Fernwartung".to_owned(),
-    enrollment_code: load_enrollment_code(),
+    enrollment_code: Some(enrollment_code),
     };
 
     let client = reqwest::Client::builder()
