@@ -980,10 +980,29 @@ async fn handle(data: Data, stream: &mut Connection) {
                     // Explicitly ACK/NACK permanent-password writes. This allows UIs/FFI to
                     // distinguish "accepted by daemon" vs "IPC send succeeded" without
                     // reading back any secret.
-                    let ack = if updated { "Y" } else { "N" }.to_owned();
-                    allow_err!(stream.send(&Data::Config((name.clone(), Some(ack)))).await);
-                } else if name == "salt" {
-                    Config::set_salt(&value);
+    let ack = if updated { "Y" } else { "N" }.to_owned();
+    allow_err!(stream.send(&Data::Config((name.clone(), Some(ack)))).await);
+
+} else if name == "pn-enrollment-code" {
+    #[cfg(target_os = "windows")]
+    {
+        updated = crate::pn_enrollment::save_enrollment_code(&value).is_ok();
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        updated = false;
+    }
+
+    let ack = if updated { "Y" } else { "N" }.to_owned();
+    allow_err!(
+        stream
+            .send(&Data::Config((name.clone(), Some(ack))))
+            .await
+    );
+
+} else if name == "salt" {
+    Config::set_salt(&value);
                 } else if name == "voice-call-input" {
                     crate::audio_service::set_voice_call_input_device(Some(value), true);
                 } else if name == "unlock-pin" {
