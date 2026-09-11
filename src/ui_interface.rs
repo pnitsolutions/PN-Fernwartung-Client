@@ -661,7 +661,16 @@ pub fn set_permanent_password_with_result(password: String) -> bool {
         }
     }
 }
-
+#[cfg(target_os = "windows")]
+pub fn set_pn_enrollment_code_with_result(code: String) -> bool {
+    match crate::ipc::set_pn_enrollment_code_with_ack(code) {
+        Ok(ok) => ok,
+        Err(err) => {
+            log::warn!("Failed to set PN enrollment code via IPC: {err}");
+            false
+        }
+    }
+}
 #[inline]
 pub fn get_peer(id: String) -> PeerConfig {
     PeerConfig::load(&id)
