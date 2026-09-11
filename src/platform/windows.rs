@@ -697,20 +697,32 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
     // Tell the system that the service is running now
     status_handle.set_service_status(next_status)?;
 
-tokio::spawn(async {
-    loop {
-        match crate::pn_enrollment::ensure_enrolled().await {
-            Ok(_) => {
-                log::info!("PN-Fernwartung enrollment finished");
-                break;
-            }
-            Err(e) => {
-                log::error!("PN-Fernwartung enrollment failed: {}", e);
+std::thread::spawn(|| {
+    let runtime = match tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(e) => {
+            log::error!("Failed to create PN-Fernwartung enrollment runtime: {}", e);
+            return;
+        }
+    };
 
-                tokio::time::sleep(Duration::from_secs(60)).await;
+    runtime.block_on(async {
+        loop {
+            match crate::pn_enrollment::ensure_enrolled().await {
+                Ok(_) => {
+                    log::info!("PN-Fernwartung enrollment finished");
+                    break;
+                }
+                Err(e) => {
+                    log::error!("PN-Fernwartung enrollment failed: {}", e);
+                    tokio::time::sleep(Duration::from_secs(60)).await;
+                }
             }
         }
-    }
+    });
 });
 
 let mut session_id = unsafe { get_current_session(share_rdp()) };
