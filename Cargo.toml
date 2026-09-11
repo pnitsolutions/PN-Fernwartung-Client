@@ -51,7 +51,7 @@ screencapturekit = ["cpal/screencapturekit"]
 
 [dependencies]
 log = "0.4"
-tokio = { version = "1", features = ["rt", "time"] }
+tokio = { version = "1", features = ["rt", "time", "net"] }
 async-trait = "0.1"
 scrap = { path = "libs/scrap", features = ["wayland"] }
 hbb_common = { path = "libs/hbb_common", features = ["webrtc"] }
