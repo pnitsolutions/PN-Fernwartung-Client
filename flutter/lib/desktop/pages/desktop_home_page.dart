@@ -848,9 +848,141 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         _updateWindowSize();
       });
     }
+    if (isWindows) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!mounted) {
+      return;
+    }
+
+    if (!bind.mainHasPnEnrollmentCode()) {
+      _showPnEnrollmentDialog();
+    }
+  });
+} 
     WidgetsBinding.instance.addObserver(this);
   }
+void _showPnEnrollmentDialog() {
+  final controller = TextEditingController();
+  var errorText = "";
+  var isLoading = false;
 
+  gFFI.dialogManager.show((setState, close, context) {
+    Future<void> submit() async {
+      if (isLoading) {
+        return;
+      }
+
+      final code = controller.text.trim().toUpperCase();
+
+      if (code.isEmpty) {
+        setState(() {
+          errorText = "Bitte Enrollment-Code eingeben.";
+        });
+        return;
+      }
+
+      setState(() {
+        isLoading = true;
+        errorText = "";
+      });
+
+      final result =
+          await bind.mainValidatePnEnrollmentCode(code: code);
+
+      if (result != "valid") {
+        setState(() {
+          isLoading = false;
+
+          switch (result) {
+            case "expired":
+              errorText = "Dieser Enrollment-Code ist abgelaufen.";
+              break;
+            case "device_limit":
+              errorText =
+                  "Für diesen Enrollment-Code wurde das Gerätelimit erreicht.";
+              break;
+            case "invalid":
+              errorText = "Der Enrollment-Code ist ungültig.";
+              break;
+            default:
+              errorText =
+                  "Der Enrollment-Code konnte nicht überprüft werden. Bitte Internetverbindung prüfen.";
+          }
+        });
+        return;
+      }
+
+      final saved =
+          await bind.mainSetPnEnrollmentCodeWithResult(code: code);
+
+      if (!saved) {
+        setState(() {
+          isLoading = false;
+          errorText =
+              "Der Enrollment-Code konnte nicht gespeichert werden.";
+        });
+        return;
+      }
+
+      close();
+    }
+
+    return CustomAlertDialog(
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.vpn_key, color: MyTheme.accent),
+          const SizedBox(width: 10),
+          const Text("PN-Fernwartung aktivieren"),
+        ],
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 450),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Bitte geben Sie den Enrollment-Code ein, den Sie von PN IT-SOLUTIONS erhalten haben.",
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.characters,
+              enabled: !isLoading,
+              decoration: InputDecoration(
+                labelText: "Enrollment-Code",
+                hintText: "PN-XXXX-XXXX-XXXX",
+                errorText: errorText.isEmpty ? null : errorText,
+              ),
+              onChanged: (_) {
+                if (errorText.isNotEmpty) {
+                  setState(() {
+                    errorText = "";
+                  });
+                }
+              },
+              onSubmitted: (_) => submit(),
+            ),
+            if (isLoading) ...[
+              const SizedBox(height: 16),
+              const Center(child: CircularProgressIndicator()),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        dialogButton(
+          "Aktivieren",
+          icon: const Icon(Icons.done_rounded),
+          onPressed: isLoading ? null : submit,
+        ),
+      ],
+      onSubmit: isLoading ? null : submit,
+      onCancel: () {},
+    );
+  });
+}
   _updateWindowSize() {
     RenderObject? renderObject = _childKey.currentContext?.findRenderObject();
     if (renderObject == null) {
