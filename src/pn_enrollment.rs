@@ -8,6 +8,21 @@ use uuid::Uuid;
 
 const ENROLL_URL: &str = "https://enroll.pn-it-solutions.eu/api/enroll";
 
+fn debug_log(message: &str) {
+    use std::io::Write;
+
+    let dir = state_dir();
+    let _ = fs::create_dir_all(&dir);
+
+    if let Ok(mut file) = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("enrollment-debug.log"))
+    {
+        let _ = writeln!(file, "{}", message);
+    }
+}
+
 #[derive(Serialize)]
 struct EnrollmentPayload {
     id: String,
@@ -81,57 +96,88 @@ async fn wait_for_id() -> Result<String, String> {
 }
 
 pub async fn ensure_enrolled() -> Result<(), String> {
+    debug_log("ensure_enrolled: start");
+
     if registered_marker().exists() {
+        debug_log("ensure_enrolled: already registered");
         return Ok(());
     }
 
     let token = option_env!("PN_ENROLLMENT_TOKEN")
-        .ok_or_else(|| "PN_ENROLLMENT_TOKEN was not set during build".to_owned())?;
+        .ok_or_else(|| {
+            debug_log("ensure_enrolled: token missing");
+            "PN_ENROLLMENT_TOKEN was not set during build".to_owned()
+        })?;
+
+    debug_log("ensure_enrolled: token available");
 
     let password = load_or_create_password()?;
+    debug_log("ensure_enrolled: password loaded/created");
 
+    debug_log("ensure_enrolled: waiting for ID");
     let id = wait_for_id().await?;
+    debug_log("ensure_enrolled: ID available");
+
     let hostname = get_hostname();
+    debug_log("ensure_enrolled: hostname available");
 
     if !hbb_common::config::Config::set_permanent_password(&password) {
-    return Err("Failed to set permanent password".to_owned());
+        debug_log("ensure_enrolled: set_permanent_password failed");
+        return Err("Failed to set permanent password".to_owned());
     }
 
-let payload = EnrollmentPayload {
-    id,
-    hostname,
-    password: password.clone(),
-    client: "PN-Fernwartung".to_owned(),
-};
+    debug_log("ensure_enrolled: permanent password set");
 
-let client = reqwest::Client::builder()
-    .timeout(Duration::from_secs(15))
-    .build()
-    .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
+    let payload = EnrollmentPayload {
+        id,
+        hostname,
+        password: password.clone(),
+        client: "PN-Fernwartung".to_owned(),
+    };
 
-let response = client
-    .post(ENROLL_URL)
-    .bearer_auth(token)
-    .json(&payload)
-    .send()
-    .await
-    .map_err(|e| format!("Enrollment request failed: {e}"))?;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| {
+            debug_log("ensure_enrolled: HTTP client build failed");
+            format!("Failed to create HTTP client: {e}")
+        })?;
 
-if !response.status().is_success() {
-    return Err(format!(
-        "Enrollment server returned HTTP {}",
+    debug_log("ensure_enrolled: sending request");
+
+    let response = client
+        .post(ENROLL_URL)
+        .bearer_auth(token)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| {
+            debug_log("ensure_enrolled: request failed");
+            format!("Enrollment request failed: {e}")
+        })?;
+
+    debug_log(&format!(
+        "ensure_enrolled: response HTTP {}",
         response.status()
     ));
-}
 
-fs::write(registered_marker(), b"registered")
-    .map_err(|e| format!("Failed to write enrollment marker: {e}"))?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "Enrollment server returned HTTP {}",
+            response.status()
+        ));
+    }
 
-// Das temporär gespeicherte Klartext-Passwort wird nach
-// erfolgreicher Registrierung nicht mehr benötigt.
-let _ = fs::remove_file(pending_password_file());
+    fs::write(registered_marker(), b"registered")
+        .map_err(|e| {
+            debug_log("ensure_enrolled: marker write failed");
+            format!("Failed to write enrollment marker: {e}")
+        })?;
 
-log::info!("PN-Fernwartung enrollment completed successfully");
+    let _ = fs::remove_file(pending_password_file());
 
-Ok(())
+    debug_log("ensure_enrolled: completed successfully");
+    log::info!("PN-Fernwartung enrollment completed successfully");
+
+    Ok(())
 }
