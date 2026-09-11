@@ -699,8 +699,8 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
 
 std::thread::spawn(|| {
     let runtime = match tokio::runtime::Builder::new_current_thread()
-        .enable_time()
-        .build()
+    .enable_all()
+    .build()
     {
         Ok(runtime) => runtime,
         Err(e) => {
