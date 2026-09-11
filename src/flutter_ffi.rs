@@ -1768,6 +1768,19 @@ pub fn main_set_permanent_password_with_result(password: String) -> bool {
     ui_interface::set_permanent_password_with_result(password)
 }
 
+pub fn main_set_pn_enrollment_code_with_result(code: String) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        return ui_interface::set_pn_enrollment_code_with_result(code);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = code;
+        false
+    }
+}
+
 pub fn main_get_fingerprint() -> String {
     get_fingerprint()
 }
