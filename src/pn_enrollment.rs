@@ -7,6 +7,8 @@ use std::{
 use uuid::Uuid;
 
 const ENROLL_URL: &str = "https://enroll.pn-it-solutions.eu/api/enroll";
+const ENROLL_VALIDATE_URL: &str =
+    "https://portal.pn-it-solutions.eu/pn-fernwartung/api/enrollment/validate";
 
 fn debug_log(message: &str) {
     use std::io::Write;
@@ -80,6 +82,55 @@ pub fn save_enrollment_code(code: &str) -> Result<(), String> {
 
     Ok(())
 }
+
+#[derive(Serialize)]
+struct EnrollmentCodeValidateRequest {
+    code: String,
+}
+
+#[derive(serde::Deserialize)]
+struct EnrollmentCodeValidateResponse {
+    valid: bool,
+    reason: Option<String>,
+}
+
+pub async fn validate_enrollment_code(code: &str) -> Result<(), String> {
+    let code = code.trim().to_uppercase();
+
+    if code.len() < 8 || code.len() > 64 {
+        return Err("invalid".to_owned());
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
+
+    let response = client
+        .post(ENROLL_VALIDATE_URL)
+        .json(&EnrollmentCodeValidateRequest { code })
+        .send()
+        .await
+        .map_err(|e| format!("Enrollment code validation request failed: {e}"))?;
+
+    let status = response.status();
+
+    let result = response
+        .json::<EnrollmentCodeValidateResponse>()
+        .await
+        .map_err(|e| format!("Invalid enrollment validation response: {e}"))?;
+
+    if status.is_success() && result.valid {
+        return Ok(());
+    }
+
+    match result.reason.as_deref() {
+        Some("expired") => Err("expired".to_owned()),
+        Some("device_limit") => Err("device_limit".to_owned()),
+        _ => Err("invalid".to_owned()),
+    }
+}
+
 fn generate_password() -> String {
     format!(
         "{}{}",
