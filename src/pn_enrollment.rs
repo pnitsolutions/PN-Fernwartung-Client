@@ -29,6 +29,7 @@ struct EnrollmentPayload {
     hostname: String,
     password: String,
     client: String,
+    enrollment_code: Option<String>,
 }
 
 fn state_dir() -> PathBuf {
@@ -44,6 +45,23 @@ fn registered_marker() -> PathBuf {
 
 fn pending_password_file() -> PathBuf {
     state_dir().join("enrollment-password")
+}
+
+fn enrollment_code_file() -> PathBuf {
+    state_dir().join("enrollment-code")
+}
+
+fn load_enrollment_code() -> Option<String> {
+    let path = enrollment_code_file();
+
+    if !path.exists() {
+        return None;
+    }
+
+    fs::read_to_string(path)
+        .ok()
+        .map(|v| v.trim().to_owned())
+        .filter(|v| !v.is_empty())
 }
 
 fn generate_password() -> String {
@@ -129,10 +147,11 @@ pub async fn ensure_enrolled() -> Result<(), String> {
     debug_log("ensure_enrolled: permanent password set");
 
     let payload = EnrollmentPayload {
-        id,
-        hostname,
-        password: password.clone(),
-        client: "PN-Fernwartung".to_owned(),
+    id,
+    hostname,
+    password: password.clone(),
+    client: "PN-Fernwartung".to_owned(),
+    enrollment_code: load_enrollment_code(),
     };
 
     let client = reqwest::Client::builder()
