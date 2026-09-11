@@ -1732,7 +1732,25 @@ async fn set_permanent_password_with_ack_async(v: String) -> ResultType<bool> {
     }
     Ok(false)
 }
+#[tokio::main(flavor = "current_thread")]
+pub async fn set_pn_enrollment_code_with_ack(v: String) -> ResultType<bool> {
+    set_pn_enrollment_code_with_ack_async(v).await
+}
 
+async fn set_pn_enrollment_code_with_ack_async(v: String) -> ResultType<bool> {
+    let ms_timeout = 1_000;
+    let mut c = connect(ms_timeout, "").await?;
+
+    c.send_config("pn-enrollment-code", v).await?;
+
+    if let Some(Data::Config((name, Some(v)))) = c.next_timeout(ms_timeout).await? {
+        if name == "pn-enrollment-code" {
+            return Ok(v.trim() == "Y");
+        }
+    }
+
+    Ok(false)
+}
 #[cfg(feature = "flutter")]
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn set_unlock_pin(v: String, translate: bool) -> ResultType<()> {
