@@ -1774,7 +1774,12 @@ pub fn main_set_pn_enrollment_code_with_result(code: String) -> bool {
         return ui_interface::set_pn_enrollment_code_with_result(code);
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        return crate::pn_enrollment::save_enrollment_code(&code).is_ok();
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         let _ = code;
         false
@@ -1782,7 +1787,7 @@ pub fn main_set_pn_enrollment_code_with_result(code: String) -> bool {
 }
 #[tokio::main(flavor = "current_thread")]
 pub async fn main_validate_pn_enrollment_code(code: String) -> String {
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     {
         match crate::pn_enrollment::validate_enrollment_code(&code).await {
             Ok(()) => "valid".to_owned(),
@@ -1790,19 +1795,19 @@ pub async fn main_validate_pn_enrollment_code(code: String) -> String {
         }
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         let _ = code;
         "unsupported".to_owned()
     }
 }
 pub fn main_has_pn_enrollment_code() -> bool {
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     {
         return crate::pn_enrollment::has_enrollment_code();
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         false
     }

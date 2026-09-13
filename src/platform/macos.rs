@@ -45,7 +45,7 @@ static mut LATEST_SEED: i32 = 0;
 #[inline]
 fn get_update_temp_dir() -> PathBuf {
     let euid = unsafe { hbb_common::libc::geteuid() };
-    Path::new("/tmp").join(format!(".rustdeskupdate-{}", euid))
+    Path::new("/tmp").join(format!(".pn-fernwartung-update-{}", euid))
 }
 
 #[inline]
@@ -838,6 +838,48 @@ pub fn start_os_service() {
     log::info!("Username: {}", crate::username());
     // Silent auto-update — runs as root via LaunchDaemon, no osascript dialog needed
     crate::updater::start_auto_update_macos();
+
+    // PN-Fernwartung device enrollment and portal heartbeat.
+    // Runs inside the root LaunchDaemon so the permanent password and
+    // system-wide enrollment state survive user sessions and reboots.
+    std::thread::spawn(|| {
+        let runtime = match tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+        {
+            Ok(runtime) => runtime,
+            Err(e) => {
+                log::error!(
+                    "Failed to create PN-Fernwartung enrollment runtime: {}",
+                    e
+                );
+                return;
+            }
+        };
+
+        runtime.block_on(async {
+            loop {
+                match crate::pn_enrollment::ensure_enrolled().await {
+                    Ok(_) => {
+                        log::info!("PN-Fernwartung enrollment finished");
+                        break;
+                    }
+                    Err(e) => {
+                        log::error!("PN-Fernwartung enrollment failed: {}", e);
+                        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                    }
+                }
+            }
+
+            loop {
+                if let Err(e) = crate::pn_enrollment::send_heartbeat().await {
+                    log::error!("PN-Fernwartung heartbeat failed: {}", e);
+                }
+
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            }
+        });
+    });
     if let Err(err) = crate::ipc::start("_service") {
         log::error!("Failed to start ipc_service: {}", err);
     }
@@ -1090,7 +1132,7 @@ pub fn update_from_dmg_as_root(dmg_path: &str, expected_version: &str) -> Result
     }
     let app_bundle = format!("/Applications/{}.app", app_name);
     let tmp_dir_output = std::process::Command::new("/usr/bin/mktemp")
-        .args(&["-d", "/tmp/.rustdeskupdate-root-XXXXXX"])
+        .args(&["-d", "/tmp/.pn-fernwartung-update-root-XXXXXX"])
         .output()?;
     let tmp_dir = String::from_utf8(tmp_dir_output.stdout)
         .map_err(|e| anyhow!("[root-update] mktemp output error: {}", e))?
@@ -1568,7 +1610,7 @@ rollback_transaction() {{
     restore_old_bundle || restore_failed=1
     cp "{daemon_plist_bak}" "{daemon_plist}" || restore_failed=1
     cp "{agent_plist_bak}" "{agent_plist}" || restore_failed=1
-    touch /var/root/.rustdeskupdate_failed || restore_failed=1
+    touch /var/root/.pn-fernwartung-update_failed || restore_failed=1
     if ! launchctl load -w "{daemon_plist}" 2>/dev/null && \
        ! launchctl bootstrap system "{daemon_plist}" 2>/dev/null; then
         restore_failed=1

@@ -1,7 +1,7 @@
 mod keyboard;
 /// cbindgen:ignore
 pub mod platform;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub mod pn_enrollment;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub use platform::{

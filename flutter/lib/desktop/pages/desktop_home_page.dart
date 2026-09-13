@@ -848,7 +848,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         _updateWindowSize();
       });
     }
-if (isWindows) {
+if (isWindows || isMacOS) {
   WidgetsBinding.instance.addPostFrameCallback((_) async {
     if (!mounted) {
       return;

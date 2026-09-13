@@ -32,6 +32,7 @@ struct EnrollmentPayload {
     hostname: String,
     password: String,
     client: String,
+    platform: String,
     enrollment_code: Option<String>,
 }
 
@@ -41,10 +42,22 @@ struct HeartbeatPayload {
 }
 
 fn state_dir() -> PathBuf {
-    let base = std::env::var("ProgramData")
-        .unwrap_or_else(|_| r"C:\ProgramData".to_owned());
+    #[cfg(target_os = "windows")]
+    {
+        let base = std::env::var("ProgramData")
+            .unwrap_or_else(|_| r"C:\ProgramData".to_owned());
+        return PathBuf::from(base).join("PN-Fernwartung");
+    }
 
-    PathBuf::from(base).join("PN-Fernwartung")
+    #[cfg(target_os = "macos")]
+    {
+        return PathBuf::from("/Library/Application Support/PN-Fernwartung");
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        PathBuf::from("/var/lib/PN-Fernwartung")
+    }
 }
 
 fn registered_marker() -> PathBuf {
@@ -60,16 +73,31 @@ fn enrollment_code_file() -> PathBuf {
 }
 
 fn load_enrollment_code() -> Option<String> {
-    let path = enrollment_code_file();
+    #[cfg(target_os = "macos")]
+    {
+        let value = hbb_common::config::Config::get_option("pn-enrollment-code");
+        let value = value.trim().to_owned();
 
-    if !path.exists() {
-        return None;
+        if value.is_empty() {
+            None
+        } else {
+            Some(value)
+        }
     }
 
-    fs::read_to_string(path)
-        .ok()
-        .map(|v| v.trim().to_owned())
-        .filter(|v| !v.is_empty())
+    #[cfg(not(target_os = "macos"))]
+    {
+        let path = enrollment_code_file();
+
+        if !path.exists() {
+            return None;
+        }
+
+        fs::read_to_string(path)
+            .ok()
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty())
+    }
 }
 pub fn has_enrollment_code() -> bool {
     load_enrollment_code().is_some()
@@ -81,15 +109,27 @@ pub fn save_enrollment_code(code: &str) -> Result<(), String> {
         return Err("Enrollment code is empty".to_owned());
     }
 
-    let dir = state_dir();
+    #[cfg(target_os = "macos")]
+    {
+        hbb_common::config::Config::set_option(
+            "pn-enrollment-code".to_owned(),
+            code,
+        );
+        return Ok(());
+    }
 
-    fs::create_dir_all(&dir)
-        .map_err(|e| format!("Failed to create enrollment state directory: {e}"))?;
+    #[cfg(not(target_os = "macos"))]
+    {
+        let dir = state_dir();
 
-    fs::write(enrollment_code_file(), code)
-        .map_err(|e| format!("Failed to store enrollment code: {e}"))?;
+        fs::create_dir_all(&dir)
+            .map_err(|e| format!("Failed to create enrollment state directory: {e}"))?;
 
-    Ok(())
+        fs::write(enrollment_code_file(), code)
+            .map_err(|e| format!("Failed to store enrollment code: {e}"))?;
+
+        Ok(())
+    }
 }
 
 #[derive(Serialize)]
@@ -149,8 +189,13 @@ fn generate_password() -> String {
 }
 
 fn get_hostname() -> String {
-    std::env::var("COMPUTERNAME")
-        .unwrap_or_else(|_| "unknown".to_owned())
+    let hostname = crate::whoami_hostname();
+
+    if hostname.trim().is_empty() || hostname == "localhost" {
+        "unknown".to_owned()
+    } else {
+        hostname
+    }
 }
 
 fn load_or_create_password() -> Result<String, String> {
@@ -227,12 +272,21 @@ debug_log("ensure_enrolled: enrollment code available");
 
     debug_log("ensure_enrolled: permanent password set");
 
+    let platform = if cfg!(target_os = "macos") {
+        "macOS".to_owned()
+    } else if cfg!(target_os = "windows") {
+        "Windows".to_owned()
+    } else {
+        std::env::consts::OS.to_owned()
+    };
+
     let payload = EnrollmentPayload {
-    id,
-    hostname,
-    password: password.clone(),
-    client: "PN-Fernwartung".to_owned(),
-    enrollment_code: Some(enrollment_code),
+        id,
+        hostname,
+        password: password.clone(),
+        client: "PN-Fernwartung".to_owned(),
+        platform,
+        enrollment_code: Some(enrollment_code),
     };
 
     let client = reqwest::Client::builder()
